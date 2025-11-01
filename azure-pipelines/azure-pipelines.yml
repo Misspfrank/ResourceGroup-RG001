@@ -1,0 +1,48 @@
+# ==============================================
+# Azure Pipelines for Terraform - Resource Group
+# ==============================================
+
+trigger:
+  branches:
+    include:
+      - main   # Run automatically when pushing to main branch
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  TF_VERSION: '1.13.4'          # Update to the Terraform version you use
+  ENV_PATH: 'environments/dev' # Path to your Terraform environment
+
+steps:
+  # Step 1: Install Terraform
+  - script: |
+      echo "Installing Terraform ${TF_VERSION}"
+      curl -fsSL https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip -o terraform.zip
+      unzip terraform.zip
+      sudo mv terraform /usr/local/bin/
+      terraform -version
+    displayName: 'Install Terraform'
+
+  # Step 2: Checkout your GitHub repository code
+  - checkout: self
+    displayName: 'Checkout source code'
+
+  # Step 3: Authenticate to Azure using your Service Connection
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'AzureRM-Connection01'  # 👈 Replace this
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        cd $ENV_PATH
+        terraform init
+        terraform plan -out=tfplan
+    displayName: 'Terraform Init and Plan'
+
+  # Step 4 (Optional): Publish Terraform Plan file as artifact
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: '$(System.DefaultWorkingDirectory)/$(ENV_PATH)/tfplan'
+      artifact: 'terraform-plan'
+    displayName: 'Publish Terraform Plan artifact'
